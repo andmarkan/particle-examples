@@ -1,0 +1,187 @@
+<!DOCTYPE>
+<!--
+    Particle - Control a LED
+    @author: Harrison Jones (harrison@particle.io)
+    @date: Oct 21, 2015
+    @description: A short demo showing how to login, grab an access token, and control your devices over the net. All without having to embed your access token in the HTML file. Yay security!
+-->
+<html>
+<head>
+    <title>Control A LED Demo</title>
+</head>
+<body>
+    <center>
+        <H1>Particle / Spark Demo</H1>
+        <!-- view 0 - The ERROR screen/view -->
+        <div id="view0" style="display: none">
+            <h2>Error</h2>
+            <div id="view0Text"></div>
+        </div>
+
+        <!-- view 1 - The login screen/view -->
+        <div id="view1" style="display: none">
+            <h2>Login</h2>
+            <div id="view1Text"></div>
+            <div id="spark-login"></div>
+        </div>
+
+        <!-- view 2 - Control the LED screen/view -->
+        <div id="view2" style="display: none">
+            <h2>Control the LED</h2>
+            <div id="view2Text"></div>
+            <table>
+                <tr>
+                    <td>
+                        <input type="button" onclick="callFunction('DEVICE_ID_GOES_HERE','led','on')" value="ON" />
+                    </td>
+                    <td>
+                        <input type="button" onclick="callFunction('DEVICE_ID_GOES_HERE','led','off')" value="OFF" />
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- Bottom Nav Bar -->
+    <hr />
+    <a onclick="logout()" href="#">Logout / Login as a Different User</a> || <a onclick="mainLogic()" href="#">Home</a>
+    </center>
+
+    <!-- The Particle.js Code -->
+    <script src="http://cdn.jsdelivr.net/sparkjs/0.5.9/spark.min.js"></script>
+
+    <!-- All the functions needed for this demo -->
+    <script>
+
+    // Allow the user to log out
+    function logout()
+    {
+        // Log out the current user by removing the access token from local storage
+        localStorage.removeItem("access_token");
+        mainLogic();
+    }
+
+    // A wrapper function for calling a Particle/Spark function. Calls the function 'functionName' with arguments 'functinArguments' on the device with device id 'deviceID'
+    function callFunction(deviceID, functionName, functionArguments)
+    {
+        // First login 
+        spark.login({accessToken: localStorage.getItem("access_token")}, function(err) {
+
+            if(err)
+            {
+                // There was an error. Go ahead and display the error to the user
+                showView(0, "Unable to login. The error was '" + err + "'");
+            }
+            else
+            {
+                // Then grab the device
+                spark.getDevice(deviceID, function(err, device)
+                {
+                    if(err)
+                    {
+                        // There was an error. Go ahead and display the error to the user
+                        showView(0, "Unable to retrieve device with ID '" + deviceID + "'. The error was '" + err + "'");
+                    }
+                    else
+                    {
+                        // The device was retreived. Try to call the function
+                    
+                        device.callFunction(functionName, functionArguments, function(err, data) {
+                            if (err) {
+                                showView(0, "Unable to call function '" + functionName + "' with args '" + functionArguments + "' on device with ID '" + deviceID + "'. The error was '" + err + "'");
+                            } else {
+                                showView(2, "Funcation call of '" + functionName + "' with args '" + functionArguments + "' on device with ID '" + deviceID + "' was successful!'. Response was: " + JSON.stringify(data) + "'");
+                                console.log(data.return_value)
+                            }
+                        });
+                    }
+                });
+            }
+
+        });
+    }
+
+    // Show a specific view
+    function showView(viewNum, extraText)
+    {
+        // Hide all views (start with a clean slate)
+        document.getElementById("view0").style.display = "none";
+        document.getElementById("view1").style.display = "none";
+        document.getElementById("view2").style.display = "none";
+
+        switch (viewNum)
+        {
+            // Show login screen
+            case 1:
+                document.getElementById("view1").style.display = "block";
+                if(extraText)
+                    document.getElementById("view1Text").innerHTML = extraText;
+            break;
+            // Show control screen
+            case 2:
+                document.getElementById("view2").style.display = "block";
+                if(extraText)
+                    document.getElementById("view2Text").innerHTML = extraText;
+            break;
+
+            // Show the error view
+            default:
+                document.getElementById("view0").style.display = "block";
+                if(extraText)
+                    document.getElementById("view0Text").innerHTML = extraText;
+        }
+    }
+        
+    // Main view logic. If the user doesn't have an access token display the login button otherwise display the contol view
+    function mainLogic()
+    {
+        // Main Logic
+        // view 0 - Does this browser support local storage (we need it!)
+        if(typeof(Storage) == "undefined")
+        {
+            // No, it does not support local storage. Show the error screen
+            showView(0,"Your browser doesn't support local storage. This feature is needed for this website!");
+        } 
+        else 
+        {
+            // view 1 - Do we need to login?
+            // First check to see if we have an access token stored in local storage
+            if(localStorage.getItem("access_token") == null)
+            {
+                // We DO NOT have an access token stored in local storage. Show the login button
+                showView(1);
+            }
+            else
+            {
+                // We DO have an access token stored in local storage. Determine if it's still valid (check the expires time)
+                console.log("expires_at", localStorage.getItem("expires_at"));
+                console.log("current_timestamp", Math.round(new Date().getTime()/1000.0));
+                if(localStorage.getItem("expires_at") > Math.round(new Date().getTime()/1000.0))
+                {
+                    // The access token should still be valid. Show the next view
+                    showView(2);
+                }
+                else
+                {
+                    // The access token is no longer valid. Show the login button
+                    if(localStorage.getItem("expires_at") == null)
+                        showView(1);
+                    else
+                        showView(1,"Your access token has expired");
+                }
+            }
+        }
+    }
+    mainLogic();
+
+    // Handle the login button
+    sparkLogin(function(data) {
+        // Successful login. Save the data to local storage
+        for(var k in data) localStorage.setItem(k,data[k]);
+        // Calculate when the access token expires and save that too
+        localStorage.setItem("expires_at",  Math.round(new Date().getTime()/1000.0) + data.expires_in);
+        mainLogic();
+    });
+    </script>
+</body>
+</html>
