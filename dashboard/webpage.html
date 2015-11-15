@@ -1,0 +1,377 @@
+<!DOCTYPE>
+<!--
+    Particle - Dashboard
+    @author: Harrison Jones (harrison@particle.io)
+    @date: Nov 14, 2015
+    @description: A proof-of-concept javascript dashboard for Particle devices.
+-->
+<html>
+<head>
+    <title>ParticleJS Dashboard</title>
+</head>
+<body>
+    <center>
+        <H1>Particle Dashboard Demo</H1>
+        <!-- view 0 - The ERROR screen/view -->
+        <div id="view0" style="display: none">
+            <h2>Error</h2>
+            <div id="view0Text"></div>
+        </div>
+
+        <!-- view 1 - The login screen/view -->
+        <div id="view1" style="display: none">
+            <h2>Login</h2>
+            <div id="view1Text"></div>
+            <div id="spark-login"></div>
+        </div>
+
+        <!-- view 2 - Dashboard screen/view -->
+        <div id="view2" style="display: none">
+            <h2>Device List</h2>
+            <table id="tableDeviceList" border="1" rules="all">
+                <tr>
+                    <td>
+                        Device Name
+                    </td>
+                    <td>
+                        Online
+                    </td>
+                    <td>
+                        Variables
+                    </td>
+                    <td>
+                        Functions
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- Bottom Nav Bar -->
+    <hr />
+    <a onclick="logout()" href="#">Logout / Login as a Different User</a> || <a onclick="mainLogic()" href="#">Home</a>
+    </center>
+
+    <!-- The Particle.js Code -->
+    <script src="http://cdn.jsdelivr.net/sparkjs/1.0.0/spark.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/jquery/3.0.0-alpha1/jquery.min.js"></script>
+
+    <!-- All the functions needed for this demo -->
+    <script>
+
+    // Keeps track of all outstanding timers. Used to cancel timers
+    var variableIntervalTimers = [];
+
+    // Allow the user to log out
+    function logout()
+    {
+        // Log out the current user by removing the access token from local storage
+        localStorage.removeItem("access_token");
+        mainLogic();
+    }
+
+    // A wrapper function for reading a Particle/Spark cloud variable. Grabs the variable with name 'variableName' from the device with device ID 'deviceID'
+    function readVariable(deviceID, variableName)
+    {
+        console.log("readVariable(", deviceID, ",", variableName, ") fired");
+        // Then grab the device
+        spark.getDevice(deviceID, function(err, device)
+        {
+            if(err)
+            {
+                // There was an error. Go ahead and display the error to the user
+                // showView(0, "Unable to retrieve device with ID '" + deviceID + "'. The error was '" + err + "'");
+                $("#" + deviceID + "-" + variableName + "Val").css({backgroundColor: '#f00'});
+
+                setTimeout(function() {$("#" + deviceID + "-" + variableName + "Val").css({backgroundColor: '#fff'});}, 500);
+            }
+            else
+            {
+                // The device was retreived. Try to call the function
+            
+                device.getVariable(variableName, function(err, data) {
+                    if (err) {
+                        showView(0, "Unable to get variable '" + variableName + "' on device with ID '" + deviceID + "'. The error was '" + err + "'");
+                    } else {
+                        //showView(2, "Get variable of '" + variableName + "' on device with ID '" + deviceID + "' was successful!'. Response was: " + JSON.stringify(data) + "'");
+                        console.log(data)
+                        document.getElementById(deviceID + "-" + variableName + "Val").innerHTML = data.result;
+
+                        $("#" + deviceID + "-" + variableName + "Val").css({backgroundColor: '#ff0'});
+
+                        setTimeout(function() {$("#" + deviceID + "-" + variableName + "Val").css({backgroundColor: '#fff'});}, 500);
+                    }
+                });
+            }
+        });
+    }
+
+
+    function monitorVariable(deviceID, variableName)
+    {
+        var interval = prompt("How often do you want to monitor '" + variableName + "' on device '" + deviceID + "'. 0 = once. 1000 = every 1000 miliseconds", "0");
+
+        if(variableIntervalTimers[deviceID + '-' + variableName] != null)
+            clearInterval(variableIntervalTimers[deviceID + '-' + variableName]);
+
+        console.log("Interval", interval);
+        if(interval !== null)
+        {
+            if(interval == 0)
+            {
+                readVariable(deviceID, variableName);
+            }
+            else
+            {
+                readVariable(deviceID, variableName);
+                variableIntervalTimers[deviceID + '-' + variableName] = setInterval(function() {readVariable(deviceID, variableName)}, interval);
+            }
+        }
+    }
+
+    // A wrapper function for calling a Particle/Spark function. Calls the function 'functionName' with arguments 'functinArguments' on the device with device id 'deviceID'
+    function callFunction(deviceID, functionName, functionArguments)
+    {
+
+        // Then grab the device
+        spark.getDevice(deviceID, function(err, device)
+        {
+            if(err)
+            {
+                // There was an error. Go ahead and display the error to the user
+                // showView(0, "Unable to retrieve device with ID '" + deviceID + "'. The error was '" + err + "'");
+                $("#" + deviceID + "-" + functionName + "RetVal").css({backgroundColor: '#f00'});
+
+                setTimeout(function() {$("#" + deviceID + "-" + functionName + "RetVal").css({backgroundColor: '#fff'});}, 500);
+
+            }
+            else
+            {
+                // The device was retreived. Try to call the function
+            
+                device.callFunction(functionName, functionArguments, function(err, data) {
+                    if (err) {
+                        showView(0, "Unable to call function '" + functionName + "' with args '" + functionArguments + "' on device with ID '" + deviceID + "'. The error was '" + err + "'");
+                    } else {
+                        //showView(2, "Funcation call of '" + functionName + "' with args '" + functionArguments + "' on device with ID '" + deviceID + "' was successful!'. Response was: " + JSON.stringify(data) + "'");
+
+                        document.getElementById(deviceID + "-" + functionName + "RetVal").innerHTML = data.return_value;
+
+                        $("#" + deviceID + "-" + functionName + "RetVal").css({backgroundColor: '#ff0'});
+
+                        setTimeout(function() {$("#" + deviceID + "-" + functionName + "RetVal").css({backgroundColor: '#fff'});}, 500);
+
+                        console.log(data.return_value)
+                    }
+                });
+            }
+        });
+    }
+
+    function callFunctionPrompt(deviceID, functionName)
+    {
+        var functionArguments = prompt("What arguments do you want to send to the function '" + functionName + "' on device '" + deviceID + "'?", "");
+        
+        if(functionArguments !== null)
+        {
+            console.log("Function called");
+            callFunction(deviceID, functionName, functionArguments)
+        }
+    }
+    
+
+    // Show a specific view
+    function showView(viewNum, extraText)
+    {
+        // Hide all views (start with a clean slate)
+        document.getElementById("view0").style.display = "none";
+        document.getElementById("view1").style.display = "none";
+        document.getElementById("view2").style.display = "none";
+
+        switch (viewNum)
+        {
+            // Show login screen
+            case 1:
+                document.getElementById("view1").style.display = "block";
+                if(extraText)
+                    document.getElementById("view1Text").innerHTML = extraText;
+            break;
+            // Show control screen
+            case 2:
+                document.getElementById("view2").style.display = "block";
+                if(extraText)
+                    document.getElementById("view2Text").innerHTML = extraText;
+            break;
+
+            // Show the error view
+            default:
+                document.getElementById("view0").style.display = "block";
+                if(extraText)
+                    document.getElementById("view0Text").innerHTML = extraText;
+        }
+    }
+        
+    // Main view logic. If the user doesn't have an access token display the login button otherwise display the contol view
+    function mainLogic()
+    {
+        // Main Logic
+        // view 0 - Does this browser support local storage (we need it!)
+        if(typeof(Storage) == "undefined")
+        {
+            // No, it does not support local storage. Show the error screen
+            showView(0,"Your browser doesn't support local storage. This feature is needed for this website!");
+        } 
+        else 
+        {
+            // view 1 - Do we need to login?
+            // First check to see if we have an access token stored in local storage
+            if(localStorage.getItem("access_token") == null)
+            {
+                // We DO NOT have an access token stored in local storage. Show the login button
+                showView(1);
+
+
+            }
+            else
+            {
+                // We DO have an access token stored in local storage. Determine if it's still valid (check the expires time)
+                console.log("expires_at", localStorage.getItem("expires_at"));
+                console.log("current_timestamp", Math.round(new Date().getTime()/1000.0));
+                if(localStorage.getItem("expires_at") > Math.round(new Date().getTime()/1000.0))
+                {
+                    // The access token should still be valid. Show the next view
+
+                    spark.login({accessToken: localStorage.getItem("access_token")}, function(err) {
+
+                        if(err)
+                        {
+                            // There was an error. Go ahead and display the error to the user
+                            showView(0, "Unable to login. The error was '" + err + "'");
+                        }
+                        else
+                        {
+                            // Then grab the device
+
+
+                            /*spark.getAttributesForAll(function(err, devices) {
+                            
+                                console.log(devices);
+                                console.log(err);
+                            });*/
+
+                            spark.listDevices(function(err, devices)
+                            {
+                                if(err)
+                                {
+                                    // There was an error. Go ahead and display the error to the user
+                                    showView(0, "Unable to list devices. The error was '" + err + "'");
+                                }
+                                else
+                                {
+                                    console.log("Got devices");
+                                    for(var i = 0; i < devices.length; i++)
+                                    {
+
+                                        devices[i].getAttributes(function(err, deviceInfo) {
+                                            console.log(deviceInfo);
+                                            var table = document.getElementById("tableDeviceList");
+
+                                            // Create an empty <tr> element and add it to the 1st position of the table:
+                                            var row = table.insertRow();
+
+                                            // Insert new cells (<td> elements) at the 1st and 2nd position of the "new" <tr> element:
+                                            var cell1 = row.insertCell(0);
+                                            var cell2 = row.insertCell(1);
+                                            var cell3 = row.insertCell(2);
+                                            var cell4 = row.insertCell(3);
+
+                                            // Add some text to the new cells:
+                                            cell1.innerHTML = deviceInfo.name;
+                                            if(deviceInfo.connected === true)
+                                                cell2.innerHTML = "<b><i>online</i></b>";
+                                            else
+                                                cell2.innerHTML = "offline";
+
+                                            
+
+                                            if(deviceInfo.variables != null)
+                                            {
+                                                cell3.innerHTML = "<table id='table" + deviceInfo.name + "Variables'  border='1' rules='all'><tr><td>Name</td><td>Monitor</td><td>Value</td></tr></table>";
+                                                var tableVariables = document.getElementById("table" + deviceInfo.name + "Variables");
+
+                                                var variableNames = Object.keys(deviceInfo.variables);
+                                                for(var j = 0; j < variableNames.length; j++)
+                                                {
+                                                    var rowVariable = tableVariables.insertRow();
+                                                    rowVariable.insertCell(0).innerHTML = variableNames[j];
+                                                    rowVariable.insertCell(1).innerHTML = "(<a href='#' onclick='monitorVariable(\"" + deviceInfo.id + "\",\"" + variableNames[j] + "\")'>monitor</a>)";
+                                                    rowVariable.insertCell(2).innerHTML = "";
+
+                                                    rowVariable.cells[2].setAttribute("id", deviceInfo.id + "-" +variableNames[j] + "Val");
+                                                }
+                                            }
+                                            else
+                                                cell3.innerHTML = "none";
+                                                //cell3.innerHTML = Object.keys(deviceInfo.variables).join(' (monitor)<br/>');
+
+
+
+                                            
+
+                                            if(deviceInfo.functions != null)
+                                            {
+                                                cell4.innerHTML = "<table id='table" + deviceInfo.name + "Functions'border='1' rules='all'><tr><td>Name</td><td>Call</td><td>Ret Val</td></tr></table>";
+
+                                                var tableFunctions = document.getElementById("table" + deviceInfo.name + "Functions");
+                                                //cell4.innerHTML = deviceInfo.functions.join(' (call)<br/>');
+                                                var functionNames = deviceInfo.functions;
+                                                for(var j = 0; j < functionNames.length; j++)
+                                                {
+                                                    var rowFunction = tableFunctions.insertRow();
+                                                    rowFunction.insertCell(0).innerHTML = functionNames[j];
+                                                    rowFunction.insertCell(1).innerHTML = "(<a href='#' onclick='callFunctionPrompt(\"" + deviceInfo.id + "\",\"" + functionNames[j] + "\")'>call</a>)";
+                                                    rowFunction.insertCell(2).innerHTML = "";
+
+                                                    rowFunction.cells[2].setAttribute("id", deviceInfo.id + "-" +functionNames[j] + "RetVal");
+                                                    
+                                                }
+                                            }
+                                            else
+                                            {
+                                                cell4.innerHTML = "none";
+                                            }
+
+
+                                        });
+                                    }
+                                }
+                            });
+                        }
+                    });
+
+                    showView(2);
+                }
+                else
+                {
+                    // The access token is no longer valid. Show the login button
+                    if(localStorage.getItem("expires_at") == null)
+                        showView(1);
+                    else
+                        showView(1,"Your access token has expired");
+                }
+            }
+        }
+    }
+    mainLogic();
+
+    // Handle the login button
+    sparkLogin(function(data) {
+        // Successful login. Save the data to local storage
+        for(var k in data) localStorage.setItem(k,data[k]);
+        // Calculate when the access token expires and save that too
+        localStorage.setItem("expires_at",  Math.round(new Date().getTime()/1000.0) + data.expires_in);
+        mainLogic();
+    });
+    </script>
+</body>
+</html>
